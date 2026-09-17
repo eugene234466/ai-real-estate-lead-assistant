@@ -1,5 +1,25 @@
-node_modules
-pychache
+=== .gitignore ===
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+*.egg-info/
+
+# Environment secrets
 .env
-venv
-.kilo
+.env.local
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+
+# OS / editor noise
+.DS_Store
+.vscode/
+.idea/
+
+# Logs
+*.log
