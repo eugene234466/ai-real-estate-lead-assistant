@@ -9,8 +9,10 @@ def create_app():
     db.init_app(app)
     migrate.init_app(app, db)
 
-    # import models so Alembic can detect them via db.metadata
     from .modules.organizations.models import Organization
     from .modules.conversations.models import Conversation, Message
+
+    from .modules.conversations.routes import conversations_bp
+    app.register_blueprint(conversations_bp, url_prefix='/api/chat')
 
     return app
