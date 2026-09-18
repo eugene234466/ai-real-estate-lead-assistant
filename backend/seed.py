@@ -1,6 +1,6 @@
-from app import create_app 
+from app import create_app
 from app.extensions import db
-from backend.app.modules.organizations.models import Organization
+from app.modules.organizations.models import Organization
 
 
 def seed_demo_organization():
