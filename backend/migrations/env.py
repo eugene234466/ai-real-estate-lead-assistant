@@ -24,8 +24,11 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-config.set_main_option(
-    "sqlalchemy.url", os.getenv("SQLALCHEMY_DATABASE_URI")
-)
+database_url = os.getenv("SQLALCHEMY_DATABASE_URI")
+if database_url is None:
+    raise RuntimeError("SQLALCHEMY_DATABASE_URI is not set in the environment")
+
+config.set_main_option("sqlalchemy.url", database_url)
+
 
 target_metadata = db.metadata
