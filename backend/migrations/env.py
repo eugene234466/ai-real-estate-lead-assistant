@@ -16,6 +16,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from app.extensions import db
 from app.modules.organizations.models import Organization
 from app.modules.conversations.models import Conversation, Message
+from app.modules.properties.models import Property
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
