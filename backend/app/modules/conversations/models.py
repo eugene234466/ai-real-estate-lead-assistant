@@ -1,6 +1,9 @@
+# backend/app/modules/conversations/models.py
+
 from extensions import db
 from sqlalchemy.dialects.postgresql import UUID
 from backend.app.shared.db_base import TenantModel
+
 
 class Conversation(TenantModel):
     __tablename__ = 'conversations'
@@ -8,7 +11,6 @@ class Conversation(TenantModel):
     ai_enabled = db.Column(db.Boolean, default=True)
     status = db.Column(db.Enum('active', 'inactive', name='conversation_status'), default='active')
     messages = db.relationship('Message', backref='conversation', lazy=True)
-
 
 
 class Message(TenantModel):
