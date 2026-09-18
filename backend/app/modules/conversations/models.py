@@ -2,7 +2,7 @@
 
 from app.extensions import db
 from sqlalchemy.dialects.postgresql import UUID
-from backend.app.shared.db_base import TenantModel
+from app.shared.db_base import TenantModel
 
 
 class Conversation(TenantModel):

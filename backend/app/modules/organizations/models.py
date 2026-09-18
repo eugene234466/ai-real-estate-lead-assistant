@@ -1,5 +1,5 @@
 from app.extensions import db
-from backend.app.shared.db_base import BaseModel
+from app.shared.db_base import BaseModel
 
 
 class Organization(BaseModel):

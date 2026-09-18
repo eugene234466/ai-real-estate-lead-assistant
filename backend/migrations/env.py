@@ -32,3 +32,4 @@ config.set_main_option("sqlalchemy.url", database_url)
 
 
 target_metadata = db.metadata
+print("REGISTERED TABLES:", list(target_metadata.tables.keys()))
