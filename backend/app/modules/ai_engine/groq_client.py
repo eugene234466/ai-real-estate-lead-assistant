@@ -1,0 +1,21 @@
+# backend/app/modules/ai_engine/groq_client.py
+
+import os
+from groq import Groq
+
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
+
+def call_groq_chat(user_text: str) -> str:
+    response = client.chat.completions.create(
+        model="openai/gpt-oss-120b",
+        messages=[
+            {"role": "system", "content": "You are a helpful real estate assistant. Respond briefly and naturally."},
+            {"role": "user", "content": user_text},
+        ],
+        temperature=0.3,
+    )
+    content = response.choices[0].message.content
+    if content is None:
+        return "Sorry, I couldn't generate a response right now."
+    return content
