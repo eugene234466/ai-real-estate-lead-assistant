@@ -1,5 +1,5 @@
-from app import create_app          # adjust to your actual app factory name/path
-from extensions import db
+from app import create_app 
+from app.extensions import db
 from backend.app.modules.organizations.models import Organization
 
 
