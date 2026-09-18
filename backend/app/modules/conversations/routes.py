@@ -1,3 +1,5 @@
+# backend/app/modules/conversations/routes.py
+
 from flask import Blueprint, request, jsonify
 from app.extensions import db
 from app.modules.conversations.models import Conversation, Message
@@ -34,7 +36,7 @@ def send_message():
     db.session.add(user_message)
     db.session.commit()
 
-    ai_reply_text = generate_ai_response(user_text)
+    ai_reply_text = generate_ai_response(user_text, demo_org.id)
 
     ai_message = Message(
         organization_id=demo_org.id,
