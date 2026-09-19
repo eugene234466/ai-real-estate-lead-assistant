@@ -4,7 +4,7 @@ from sqlalchemy.dialects.postgresql import UUID
 
 class Lead(TenantModel):
     __tablename__ = 'leads'
-    name = db.Column(db.String(50))
+    name = db.Column(db.String(255))
     email = db.Column(db.String(255))
     phone = db.Column(db.String(13))
     source = db.Column(db.String(50))
