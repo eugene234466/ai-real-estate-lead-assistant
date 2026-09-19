@@ -9,7 +9,7 @@ class Property(TenantModel):
     description = db.Column(db.Text)
     property_type = db.Column(db.String(100), nullable=False)
     listing_type = db.Column(db.Enum('sale', 'rent', name='listing_type'), nullable=False)
-    price = db.Column(db.Numeric(12, 2), nullable=False)
+    price = db.Column(db.Numeric(13, 2), nullable=False)
     currency = db.Column(db.String(10), default='USD')
     location = db.Column(db.String(255), nullable=False)
     bedrooms = db.Column(db.Integer)
