@@ -13,7 +13,8 @@ def call_groq_chat(system_prompt: str, user_text: str) -> str:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_text},
         ],
-        temperature=0.3,
+        temperature=0.2,
+        response_format = {"type": "json_object"}
     )
     content = response.choices[0].message.content
     if content is None:
