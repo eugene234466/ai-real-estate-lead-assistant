@@ -12,6 +12,7 @@ def create_app():
     from .modules.organizations.models import Organization
     from .modules.conversations.models import Conversation, Message
     from .modules.properties.models import Property
+    from .modules.leads.models import Lead
 
     from .modules.conversations.routes import conversations_bp
     app.register_blueprint(conversations_bp, url_prefix='/api/chat')
