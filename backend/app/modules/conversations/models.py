@@ -11,7 +11,7 @@ class Conversation(TenantModel):
     ai_enabled = db.Column(db.Boolean, default=True)
     status = db.Column(db.Enum('active', 'inactive', name='conversation_status'), default='active')
     messages = db.relationship('Message', backref='conversation', lazy=True)
-
+    lead_id = db.Column(UUID(as_uuid=True), db.ForeignKey('leads.id'))
 
 class Message(TenantModel):
     __tablename__ = 'messages'
