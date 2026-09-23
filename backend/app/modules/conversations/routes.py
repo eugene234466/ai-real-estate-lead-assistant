@@ -41,4 +41,22 @@ def send_message():
     
     if conversation.lead_id is None:
         lead =  Lead(organization=demo_org.id)
+        db.session.add(conversation)
+        db.session.commit()
+    else:
+        lead = Lead.query.filter_by(organization_id=conversation.lead_id)
         
+    if ai_result['property_id'] is not None:
+        lead.property_id = ai_result['property_id']    
+        
+    if ai_result['buy_or_rent'] is not None:
+        lead.property_id = ai_result['buy_or_rent']    
+    
+    if ai_result['budget'] is not None:
+        lead.property_id = ai_result['budget']    
+            
+    if ai_result['timeline'] is not None:
+        lead.property_id = ai_result['timeline']
+            
+    if ai_result['intent'] is not None:
+        lead.property_id = ai_result['intent']        
