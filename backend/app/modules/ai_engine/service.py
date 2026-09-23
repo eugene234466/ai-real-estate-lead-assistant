@@ -1,8 +1,11 @@
 # backend/app/modules/ai_engine/service.py
 
 from app.modules.ai_engine.groq_client import call_groq_chat
+from app.modules.ai_engine.output_schema import validate_ai_output
 from app.modules.properties.models import Property
+import logging
 
+logger = logging.getLogger(__name__)
 
 def build_system_prompt(properties) -> str:
     property_lines = "\n".join(
@@ -43,9 +46,22 @@ def build_system_prompt(properties) -> str:
     )    
 
 
-def generate_ai_response(user_text: str, organization_id) -> str:
-    properties = Property.query.filter_by(organization_id=organization_id).all()
+def generate_ai_response(user_text: str, organization_id):
+    properties = Property.query.filter_by(organization_id = organization_id).all()
 
     system_prompt = build_system_prompt(properties)
 
-    return call_groq_chat(system_prompt, user_text)
+    raw_output = call_groq_chat(system_prompt, user_text)
+    is_valid, parsed, error = validate_ai_output(raw_output)
+    
+    if not is_valid:
+        logger.error("Invalid AI output: %s", error)
+        return{
+            "response": "Sorry I'm having trouble processing that right now. let me get an agent to help",
+            "lead_stage": "HUMAN_HANDOFF",
+            "human_handoff": True,
+            
+        }
+        
+    return parsed
+            
