@@ -22,7 +22,7 @@ def validate_ai_output(raw_text):
         return(False, None, "invalid lead_stage")
     
     if parsed['buy_or_rent'] not in VALID_BUY_OR_RENT:
-        return(False, None, "invalid buy_or-rent")
+        return(False, None, "invalid buy_or_rent")
     
     if type(parsed['human_handoff_required']) is not bool:
         return(False, None, "invalid human_handoff_required")
