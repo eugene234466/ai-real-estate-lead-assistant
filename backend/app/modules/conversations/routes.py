@@ -1,3 +1,5 @@
+# backend/app/modules/conversations/routes.py
+
 from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify
 from app.extensions import db
@@ -36,6 +38,13 @@ def send_message():
     )
     db.session.add(user_message)
     db.session.commit()
+
+    if not conversation.ai_enabled:
+        return jsonify({
+            "reply": None,
+            "ai_paused": True,
+            "message": "This conversation is currently being handled by an agent."
+        })
 
     ai_result = generate_ai_response(user_text, demo_org.id)
 
