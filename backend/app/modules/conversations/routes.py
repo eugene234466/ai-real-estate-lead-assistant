@@ -4,6 +4,7 @@ from app.extensions import db
 from app.modules.conversations.models import Conversation, Message
 from app.modules.organizations.models import Organization
 from app.modules.leads.models import Lead
+from app.modules.leads.state_machine import apply_lead_stage
 from app.modules.ai_engine.service import generate_ai_response
 
 conversations_bp = Blueprint('conversations', __name__)
@@ -62,7 +63,10 @@ def send_message():
     if ai_result['intent'] is not None:
         lead.intent = ai_result['intent']
 
-    lead.lead_stage = ai_result["lead_stage"]
+    transition_applied = apply_lead_stage(lead, ai_result["lead_stage"])
+    if not transition_applied:
+        ai_result["human_handoff_required"] = True
+
     lead.last_contact_at = datetime.now(timezone.utc)
     db.session.commit()
 
