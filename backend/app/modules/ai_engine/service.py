@@ -53,15 +53,21 @@ def generate_ai_response(user_text: str, organization_id):
 
     raw_output = call_groq_chat(system_prompt, user_text)
     is_valid, parsed, error = validate_ai_output(raw_output)
-    
+   
     if not is_valid:
         logger.error("Invalid AI output: %s", error)
-        return{
-            "response": "Sorry I'm having trouble processing that right now. let me get an agent to help",
+        return {
+            "intent": None,
+            "property_id": None,
+            "buy_or_rent": None,
+            "budget": None,
+            "timeline": None,
+            "missing_information": [],
             "lead_stage": "HUMAN_HANDOFF",
-            "human_handoff": True,
-            
-        }
+            "next_action": "ESCALATE_TO_AGENT",
+            "human_handoff_required": True,
+            "response": "Sorry, I'm having trouble processing that right now. Let me get an agent to help."
+    }
         
     return parsed
             

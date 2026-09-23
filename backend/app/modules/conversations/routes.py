@@ -1,5 +1,4 @@
-# backend/app/modules/conversations/routes.py
-
+from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify
 from app.extensions import db
 from app.modules.conversations.models import Conversation, Message
@@ -38,36 +37,46 @@ def send_message():
     db.session.commit()
 
     ai_result = generate_ai_response(user_text, demo_org.id)
-    
+
     if conversation.lead_id is None:
-        lead =  Lead(organization=demo_org.id)
-        db.session.add(conversation)
+        lead = Lead(organization_id=demo_org.id)
+        db.session.add(lead)
+        db.session.commit()
+        conversation.lead_id = lead.id
         db.session.commit()
     else:
-        lead = Lead.query.filter_by(organization_id=conversation.lead_id)
-        
+        lead = Lead.query.filter_by(id=conversation.lead_id).first()
+
     if ai_result['property_id'] is not None:
-        lead.property_id = ai_result['property_id']    
-        
+        lead.property_id = ai_result['property_id']
+
     if ai_result['buy_or_rent'] is not None:
-        lead.property_id = ai_result['buy_or_rent']    
-    
+        lead.buy_or_rent = ai_result['buy_or_rent']
+
     if ai_result['budget'] is not None:
-        lead.property_id = ai_result['budget']    
-            
+        lead.budget = ai_result['budget']
+
     if ai_result['timeline'] is not None:
-        lead.property_id = ai_result['timeline']
-            
+        lead.timeline = ai_result['timeline']
+
     if ai_result['intent'] is not None:
-        lead.property_id = ai_result['intent']       
-        
+        lead.intent = ai_result['intent']
+
     lead.lead_stage = ai_result["lead_stage"]
-    lead.last_contact_at  = db.DateTime.now()
+    lead.last_contact_at = datetime.now(timezone.utc)
     db.session.commit()
-    
-    
+
     if ai_result["human_handoff_required"]:
         conversation.ai_enabled = False
         db.session.commit()
-        
-    ai_message
+
+    ai_message = Message(
+        organization_id=demo_org.id,
+        conversation_id=conversation.id,
+        sender="ai",
+        text=ai_result["response"]
+    )
+    db.session.add(ai_message)
+    db.session.commit()
+
+    return jsonify({"reply": ai_result["response"]})
