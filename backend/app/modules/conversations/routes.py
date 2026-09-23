@@ -93,3 +93,34 @@ def send_message():
     db.session.commit()
 
     return jsonify({"reply": ai_result["response"]})
+
+# backend/app/modules/conversations/routes.py — add these two routes
+
+@conversations_bp.route('/<conversation_id>/take-over', methods=['POST'])
+def take_over(conversation_id):
+    conversation = Conversation.query.filter_by(id=conversation_id).first()
+    if not conversation:
+        return jsonify({"error": "conversation not found"}), 404
+
+    conversation.ai_enabled = False
+    db.session.commit()
+
+    return jsonify({
+        "conversation_id": conversation.id,
+        "ai_enabled": False
+    })
+
+
+@conversations_bp.route('/<conversation_id>/resume', methods=['POST'])
+def resume_ai(conversation_id):
+    conversation = Conversation.query.filter_by(id=conversation_id).first()
+    if not conversation:
+        return jsonify({"error": "conversation not found"}), 404
+
+    conversation.ai_enabled = True
+    db.session.commit()
+
+    return jsonify({
+        "conversation_id": conversation.id,
+        "ai_enabled": True
+    })
