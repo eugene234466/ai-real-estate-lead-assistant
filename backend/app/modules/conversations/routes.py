@@ -4,6 +4,7 @@ from flask import Blueprint, request, jsonify
 from app.extensions import db
 from app.modules.conversations.models import Conversation, Message
 from app.modules.organizations.models import Organization
+from app.modules.leads.models import Lead
 from app.modules.ai_engine.service import generate_ai_response
 
 conversations_bp = Blueprint('conversations', __name__)
@@ -36,15 +37,8 @@ def send_message():
     db.session.add(user_message)
     db.session.commit()
 
-    ai_reply_text = generate_ai_response(user_text, demo_org.id)
-
-    ai_message = Message(
-        organization_id=demo_org.id,
-        conversation_id=conversation.id,
-        sender="ai",
-        text=ai_reply_text
-    )
-    db.session.add(ai_message)
-    db.session.commit()
-
-    return jsonify({"reply": ai_reply_text})
+    ai_result = generate_ai_response(user_text, demo_org.id)
+    
+    if conversation.lead_id is None:
+        lead =  Lead(organization=demo_org.id)
+        
