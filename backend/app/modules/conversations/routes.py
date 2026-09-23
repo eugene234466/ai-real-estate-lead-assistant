@@ -59,4 +59,15 @@ def send_message():
         lead.property_id = ai_result['timeline']
             
     if ai_result['intent'] is not None:
-        lead.property_id = ai_result['intent']        
+        lead.property_id = ai_result['intent']       
+        
+    lead.lead_stage = ai_result["lead_stage"]
+    lead.last_contact_at  = db.DateTime.now()
+    db.session.commit()
+    
+    
+    if ai_result["human_handoff_required"]:
+        conversation.ai_enabled = False
+        db.session.commit()
+        
+    ai_message
