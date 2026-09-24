@@ -18,6 +18,7 @@ from app.modules.organizations.models import Organization
 from app.modules.conversations.models import Conversation, Message
 from app.modules.properties.models import Property
 from app.modules.leads.models import Lead
+from app.modules.appointments.models import Appointment
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
