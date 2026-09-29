@@ -15,6 +15,7 @@ def create_app():
     from .modules.leads.models import Lead
     from .modules.appointments.models import Appointment
     from .modules.followups.models import FollowUp
+    from .modules.notifications.models import Notification
     
 
     from .modules.conversations.routes import conversations_bp
