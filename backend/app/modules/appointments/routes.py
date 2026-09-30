@@ -7,6 +7,7 @@ from app.extensions import db
 from app.modules.appointments.models import Appointment
 from app.modules.leads.models import Lead
 from app.modules.leads.state_machine import apply_lead_stage, can_transition
+from app.modules.notifications.models import Notification
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,14 @@ def create_appointment():
     db.session.commit()
 
     apply_lead_stage(lead, "BOOKED")
+    notification = Notification(
+        organization_id = lead.organization_id,
+        lead_id = lead.id,
+        appointment_id=appointment.id,
+        type= "NEW APPOINTMENT",
+        message=f"New appointment booked for {appointment.scheduled_at.isoformat()}"
+    )
+    db.session.add(notification)
     db.session.commit()
 
     logger.info(f"Agent notification stub: new appointment {appointment.id} for lead {lead.id}")
