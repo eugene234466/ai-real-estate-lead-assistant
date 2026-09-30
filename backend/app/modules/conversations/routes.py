@@ -8,6 +8,7 @@ from app.modules.organizations.models import Organization
 from app.modules.leads.models import Lead
 from app.modules.leads.state_machine import apply_lead_stage
 from app.modules.ai_engine.service import generate_ai_response
+from app.modules.notifications.models import Notification
 
 conversations_bp = Blueprint('conversations', __name__)
 
@@ -81,6 +82,15 @@ def send_message():
 
     if ai_result["human_handoff_required"]:
         conversation.ai_enabled = False
+        
+        notification = Notification(
+            organization_id = demo_org.id,
+            lead_id = lead.id,
+            conversation_id =conversation.id, 
+            type = "HUMAN_HANDOFF",
+            message=f"Conversation needs human attention - lead stage: {lead.lead_stage}"
+        )
+        db.session.add(notification)
         db.session.commit()
 
     ai_message = Message(
