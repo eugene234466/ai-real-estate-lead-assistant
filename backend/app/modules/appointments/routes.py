@@ -56,7 +56,7 @@ def create_appointment():
         organization_id = lead.organization_id,
         lead_id = lead.id,
         appointment_id=appointment.id,
-        type= "NEW APPOINTMENT",
+        type= "NEW_APPOINTMENT",
         message=f"New appointment booked for {appointment.scheduled_at.isoformat()}"
     )
     db.session.add(notification)
