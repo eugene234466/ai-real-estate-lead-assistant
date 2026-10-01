@@ -21,7 +21,7 @@ from app.modules.leads.models import Lead
 from app.modules.appointments.models import Appointment
 from app.modules.followups.models import FollowUp
 from app.modules.notifications.models import Notification
-from backend.app.modules.auth.models import User
+from app.modules.auth.models import User
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
