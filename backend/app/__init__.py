@@ -19,6 +19,7 @@ def create_app():
     from .modules.appointments.models import Appointment
     from .modules.followups.models import FollowUp
     from .modules.notifications.models import Notification
+    from .modules.auth.models import User
 
     from .modules.conversations.routes import conversations_bp
     app.register_blueprint(conversations_bp, url_prefix='/api/chat')

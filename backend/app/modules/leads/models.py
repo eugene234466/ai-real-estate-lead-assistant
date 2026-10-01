@@ -23,7 +23,7 @@ class Lead(TenantModel):
         nullable=False,
         default='NEW'
     )
-    assigned_agent_id = db.Column(UUID(as_uuid=True))
+    assigned_agent_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id'))
     last_contact_at = db.Column(db.DateTime)
     next_follow_up_at = db.Column(db.DateTime)
     
