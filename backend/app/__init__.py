@@ -1,6 +1,7 @@
 from flask import Flask
 from flask_cors import CORS
 from .extensions import db, migrate
+from .extensions import jwt, bcrypt
 
 
 def create_app():
@@ -11,6 +12,8 @@ def create_app():
 
     db.init_app(app)
     migrate.init_app(app, db)
+    jwt.init_app(app)
+    bcrypt.init_app(app)
 
     from .modules.organizations.models import Organization
     from .modules.conversations.models import Conversation, Message
