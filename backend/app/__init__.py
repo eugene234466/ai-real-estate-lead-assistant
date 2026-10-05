@@ -23,11 +23,15 @@ def create_app():
     from .modules.followups.models import FollowUp
     from .modules.notifications.models import Notification
     from .modules.auth.models import User
+    
 
     from .modules.conversations.routes import conversations_bp
     app.register_blueprint(conversations_bp, url_prefix='/api/chat')
 
     from .modules.appointments.routes import appointments_bp
     app.register_blueprint(appointments_bp, url_prefix='/api/appointments')
+    
+    from .modules.auth.routes import auth_bp
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
 
     return app
