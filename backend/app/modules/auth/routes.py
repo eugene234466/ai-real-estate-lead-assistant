@@ -58,3 +58,39 @@ def signup():
     set_access_cookies(response, access_token)
     set_refresh_cookies(response, refresh_token)
     return response, 201
+
+
+@auth_bp.route('/login', methods=['POST'])
+def login():
+    body = request.get_json()
+    email = body.get('email')
+    password = body.get('password')
+    
+    if email is None or password is None:
+        return jsonify({'error':'email and password are required'}), 400
+    
+    user = User.query.filter_by(email=email).first()
+    
+    if user is None or not bcrypt.check_password_hash(user.password_hash, password):
+        return jsonify({'error':'Invalid email or password'}), 401
+    
+    if not user.is_active:
+        return jsonify({'error':'This account has been deactivated'}), 403
+    
+    access_token = create_access_token(identity=str(user.id), additional_claims={
+        "organization_id": str(user.organization_id),
+        "role": user.role
+    })
+    refresh_token = create_refresh_token(identity=str(user.id))
+    
+    response = jsonify({
+        'user_id': user.id,
+        'organization_id': user.organization_id,
+        'email': user.email,
+        'role': user.role 
+    })
+    set_access_cookies(response, access_token)
+    set_refresh_cookies(response, refresh_token)
+    
+    return response, 200
+    
