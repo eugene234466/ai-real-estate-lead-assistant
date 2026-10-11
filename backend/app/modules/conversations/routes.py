@@ -10,6 +10,15 @@ from app.modules.leads.state_machine import apply_lead_stage
 from app.modules.ai_engine.service import generate_ai_response
 from app.modules.notifications.models import Notification
 from flask_jwt_extended import jwt_required, get_jwt
+from sqlalchemy.dialects.postgresql import UUID 
+import uuid
+
+def is_valid_uuid(value):
+    try:
+        uuid.UUID(value)
+        return True
+    except ValueError:
+        return False 
 
 conversations_bp = Blueprint('conversations', __name__)
 
