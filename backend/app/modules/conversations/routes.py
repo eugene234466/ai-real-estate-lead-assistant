@@ -19,7 +19,7 @@ def is_valid_uuid(value):
         return True
     except ValueError:
         return False 
-
+    
 conversations_bp = Blueprint('conversations', __name__)
 
 
@@ -149,6 +149,9 @@ def resume_ai(conversation_id):
 @conversations_bp.route('/<conversation_id>/take-over', methods=['POST'])
 @jwt_required()
 def take_over(conversation_id):
+    if not is_valid_uuid(conversation_id):
+        return jsonify({'error': 'conversation not found'}), 404
+    
     org_id =get_jwt()["organization_id"]
     conversation = Conversation.query.filter_by(id=conversation_id, organization_id = org_id).first()
     
