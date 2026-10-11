@@ -9,6 +9,7 @@ from app.modules.leads.models import Lead
 from app.modules.leads.state_machine import apply_lead_stage
 from app.modules.ai_engine.service import generate_ai_response
 from app.modules.notifications.models import Notification
+from flask_jwt_extended import jwt_required, get_jwt
 
 conversations_bp = Blueprint('conversations', __name__)
 
@@ -134,3 +135,23 @@ def resume_ai(conversation_id):
         "conversation_id": conversation.id,
         "ai_enabled": True
     })
+    
+
+@conversations_bp.route('/<conversation_id>/take-over', methods=['POST'])
+@jwt_required()
+def take_over(conversation_id):
+    org_id =get_jwt()["organization_id"]
+    conversation = Conversation.query.filter_by(id=conversation_id, organization_id = org_id).first()
+    
+    if not conversation:
+        return jsonify({'error':'conversation not found'}), 404
+    
+    conversation.ai_enabled = False
+    db.session.commit()
+    
+    return jsonify({
+        'conversation_id': conversation.id,
+        'ai_enabled': False
+    })
+    
+    
