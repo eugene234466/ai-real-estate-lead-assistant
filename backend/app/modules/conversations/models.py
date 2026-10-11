@@ -12,7 +12,7 @@ class Conversation(TenantModel):
     status = db.Column(db.Enum('active', 'inactive', name='conversation_status'), default='active')
     messages = db.relationship('Message', backref='conversation', lazy=True)
     lead_id = db.Column(UUID(as_uuid=True), db.ForeignKey('leads.id'))
-    public_id = db.Column(db.String(64), nullable=False, unique=True, index=True, default=lambda: secrets.token_urlsafe(32))
+    public_token = db.Column(db.String(64), nullable=False, unique=True, index=True, default=lambda: secrets.token_urlsafe(32))
 
 class Message(TenantModel):
     __tablename__ = 'messages'
