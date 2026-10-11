@@ -132,7 +132,11 @@ def take_over(conversation_id):
 
 
 @conversations_bp.route('/<conversation_id>/resume', methods=['POST'])
+@jwt_required()
 def resume_ai(conversation_id):
+    if not is_valid_uuid(conversation_id):
+        return jsonify({"error": "conversation not found"}), 404
+    
     conversation = Conversation.query.filter_by(id=conversation_id).first()
     if not conversation:
         return jsonify({"error": "conversation not found"}), 404
