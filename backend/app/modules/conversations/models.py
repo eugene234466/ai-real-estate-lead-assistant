@@ -3,7 +3,7 @@
 from app.extensions import db
 from sqlalchemy.dialects.postgresql import UUID
 from app.shared.db_base import TenantModel
-
+import secrets
 
 class Conversation(TenantModel):
     __tablename__ = 'conversations'
@@ -19,3 +19,5 @@ class Message(TenantModel):
     conversation_id = db.Column(UUID(as_uuid=True), db.ForeignKey('conversations.id'), nullable=False)
     sender = db.Column(db.Enum('user', 'ai', 'agent', name='message_sender'), nullable=False)
     text = db.Column(db.Text, nullable=False)
+    public_id = db.Column(db.String(64), nullable=False, unique=True, indexed=True, default=lambda: secrets.token_urlsafe(32))
+    
