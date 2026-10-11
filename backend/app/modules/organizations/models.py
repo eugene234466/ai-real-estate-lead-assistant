@@ -7,5 +7,5 @@ class Organization(BaseModel):
     __tablename__ = 'organizations'
 
     name = db.Column(db.String, nullable=False)
-    widget_key =db.Column(db.String(64), nullable=False, unique=True, indexed=True, default=lambda: secrets.token_urlsafe(24))
+    widget_key =db.Column(db.String(64), nullable=False, unique=True, index=True, default=lambda: secrets.token_urlsafe(24))
     
