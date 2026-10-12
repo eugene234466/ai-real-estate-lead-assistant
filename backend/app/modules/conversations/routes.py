@@ -15,6 +15,7 @@ from app.modules.leads.models import Lead
 from app.modules.leads.state_machine import apply_lead_stage
 from app.modules.ai_engine.service import generate_ai_response
 from app.modules.notifications.models import Notification
+from app.modules.leads.state_machine import advance_lead_stage
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +160,11 @@ def send_message():
         lead.intent = clean_text(ai_result['intent'], 500)
 
     handoff_required = bool(ai_result.get("human_handoff_required"))
-    if not apply_lead_stage(lead, ai_result["lead_stage"]):
+
+    advance_lead_stage(lead, ai_result["lead_stage"])
+
+    # keep the lead's stage and the AI on/off switch consistent
+    if lead.lead_stage == "HUMAN_HANDOFF":
         handoff_required = True
 
     lead.last_contact_at = datetime.now(timezone.utc).replace(tzinfo=None)
