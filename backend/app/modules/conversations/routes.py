@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 conversations_bp = Blueprint('conversations', __name__)
 
 MAX_MESSAGE_LENGTH = 1000
+MAX_HISTORY_MESSAGES = 10
 FALLBACK_REPLY = "Sorry, I'm having trouble right now. An agent will follow up with you shortly."
 
 
