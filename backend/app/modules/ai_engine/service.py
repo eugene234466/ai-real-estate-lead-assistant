@@ -57,6 +57,8 @@ def summarize_lead(lead):
     lines = []
     if lead.buy_or_rent:
         lines.append(f"- Wants to: {lead.buy_or_rent}")
+    if lead.location_preference:
+        lines.append(f"- Preferred area: {_clean(lead.location_preference, 200)}")
     if lead.budget is not None:
         lines.append(f"- Budget: {lead.budget}")
     if lead.timeline:
@@ -108,6 +110,7 @@ nothing else (no markdown, no extra text):
     "intent": "property_inquiry" | "general_question" | "unclear",
     "property_id": string or null,
     "buy_or_rent": "buy" | "rent" | null,
+    "location_preference": string or null,
     "budget": number or null,
     "timeline": string or null,
     "missing_information": [string, ...],
@@ -120,6 +123,7 @@ nothing else (no markdown, no extra text):
 Field rules:
 - Use null for anything the visitor has not told you yet.
 - property_id must be copied exactly from the list above, or be null.
+- location_preference is the area or neighbourhood the visitor wants, in their own words.
 - budget is a plain number with no currency symbols.
 - lead_stage: ENGAGED once the visitor shows real interest; QUALIFYING while you
   collect rent-or-buy, budget and timeline; QUALIFIED once you have all three;
@@ -150,6 +154,7 @@ def _fallback_response():
         "intent": None,
         "property_id": None,
         "buy_or_rent": None,
+        "location_preference": None,
         "budget": None,
         "timeline": None,
         "missing_information": [],
