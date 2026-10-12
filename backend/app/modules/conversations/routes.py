@@ -71,6 +71,11 @@ def clean_email(value):
     return value
 
 
+def can_reach(lead):
+    # an agent can follow up only if we have a name and at least one way to contact them
+    return bool(lead.name and (lead.phone or lead.email))
+
+
 # ---------- public: the visitor-facing chat widget ----------
 
 @conversations_bp.route('/message', methods=['POST'])
@@ -155,6 +160,9 @@ def send_message():
         db.session.flush()
         conversation.lead_id = lead.id
 
+    # NEW: remember whether we could already reach this visitor, before saving anything
+    had_contact = can_reach(lead)
+
     # the AI's output is untrusted: validate every field before it touches the DB
     property_id = ai_result.get('property_id')
     if property_id and is_valid_uuid(property_id):
@@ -201,6 +209,14 @@ def send_message():
     if lead.lead_stage == "HUMAN_HANDOFF":
         handoff_required = True
 
+    # NEW: the server enforces what the reply promises. Once an agent can reach the
+    # visitor, an agent gets notified, whatever the model's flag says.
+    contact_just_collected = (not had_contact) and can_reach(lead)
+    if contact_just_collected:
+        if not handoff_required:
+            logger.info("Server forced handoff: contact details collected for lead %s", lead.id)
+        handoff_required = True
+
     lead.last_contact_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
     reply_text = ai_result.get("response")
@@ -214,6 +230,9 @@ def send_message():
         viewing = ai_result.get('viewing_preference')
         if isinstance(viewing, str) and viewing.strip():
             note = f"Viewing requested for: {viewing.strip()[:200]} - lead stage: {lead.lead_stage}"
+        elif contact_just_collected:
+            # deliberately no phone or email here: contact details live on the lead only
+            note = f"Visitor left contact details for follow-up - lead stage: {lead.lead_stage}"
         else:
             note = f"Conversation needs human attention - lead stage: {lead.lead_stage}"
 
