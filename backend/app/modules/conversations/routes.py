@@ -83,12 +83,13 @@ def send_message():
         db.session.add(conversation)
         db.session.commit()
 
-    db.session.add(Message(
+    user_message = Message(
         organization_id=org.id,
         conversation_id=conversation.id,
         sender="user",
         text=user_text
-    ))
+    )
+    db.session.add(user_message)
     db.session.commit()
 
     if not conversation.ai_enabled:
@@ -99,21 +100,37 @@ def send_message():
             "conversation_token": conversation.public_token
         })
 
+    # what the AI needs to stay coherent: the recent transcript and what we know so far
+    recent = (
+        Message.query
+        .filter(
+            Message.conversation_id == conversation.id,
+            Message.organization_id == org.id,
+            Message.id != user_message.id      # the current message is passed separately
+        )
+        .order_by(Message.created_at.desc())
+        .limit(MAX_HISTORY_MESSAGES)
+        .all()
+    )
+    history = [(m.sender, m.text) for m in reversed(recent)]   # oldest first
+
+    lead = None
+    if conversation.lead_id is not None:
+        lead = Lead.query.filter_by(
+            id=conversation.lead_id, organization_id=org.id
+        ).first()
+
     try:
-        ai_result = generate_ai_response(user_text, org.id)
+        ai_result = generate_ai_response(user_text, org.id, history=history, lead=lead)
     except Exception:
         logger.exception("AI generation failed for conversation %s", conversation.id)
         return jsonify({"error": "The assistant is unavailable right now. Please try again."}), 503
 
-    if conversation.lead_id is None:
+    if lead is None:
         lead = Lead(organization_id=org.id, source="web_chat")
         db.session.add(lead)
         db.session.flush()
         conversation.lead_id = lead.id
-    else:
-        lead = Lead.query.filter_by(
-            id=conversation.lead_id, organization_id=org.id
-        ).first()
 
     # the AI's output is untrusted: validate every field before it touches the DB
     property_id = ai_result.get('property_id')
@@ -126,6 +143,9 @@ def send_message():
 
     if ai_result.get('buy_or_rent') is not None:
         lead.buy_or_rent = ai_result['buy_or_rent']
+
+    if ai_result.get('location_preference') is not None:
+        lead.location_preference = clean_text(ai_result['location_preference'], 500)
 
     budget = clean_budget(ai_result.get('budget'))
     if budget is not None:
@@ -176,7 +196,6 @@ def send_message():
         "reply": reply_text,
         "conversation_token": conversation.public_token
     })
-
 
 # ---------- agent-facing: login required, scoped to the agent's own org ----------
 
