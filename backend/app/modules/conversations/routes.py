@@ -12,10 +12,9 @@ from app.modules.conversations.models import Conversation, Message
 from app.modules.organizations.models import Organization
 from app.modules.properties.models import Property
 from app.modules.leads.models import Lead
-from app.modules.leads.state_machine import apply_lead_stage
+from app.modules.leads.state_machine import advance_lead_stage
 from app.modules.ai_engine.service import generate_ai_response
 from app.modules.notifications.models import Notification
-from app.modules.leads.state_machine import advance_lead_stage
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +47,28 @@ def clean_text(value, max_length):
     if value is None:
         return None
     return str(value)[:max_length]
+
+
+def clean_phone(value):
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    digits = "".join(ch for ch in value if ch.isdigit())
+    cleaned = ("+" if value.startswith("+") else "") + digits
+    # reject instead of truncating: a cut-off phone number is worse than none
+    return cleaned if 7 <= len(cleaned) <= 13 else None
+
+
+def clean_email(value):
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    if len(value) > 255 or " " in value or value.count("@") != 1:
+        return None
+    local, domain = value.split("@")
+    if not local or "." not in domain:
+        return None
+    return value
 
 
 # ---------- public: the visitor-facing chat widget ----------
@@ -159,8 +180,21 @@ def send_message():
     if ai_result.get('intent') is not None:
         lead.intent = clean_text(ai_result['intent'], 500)
 
+    name = ai_result.get('name')
+    if isinstance(name, str) and name.strip():
+        lead.name = name.strip()[:255]
+
+    phone = clean_phone(ai_result.get('phone'))
+    if phone:
+        lead.phone = phone
+
+    email = clean_email(ai_result.get('email'))
+    if email:
+        lead.email = email
+
     handoff_required = bool(ai_result.get("human_handoff_required"))
 
+    # the AI suggests a stage; the server decides how far the lead actually moves
     advance_lead_stage(lead, ai_result["lead_stage"])
 
     # keep the lead's stage and the AI on/off switch consistent
@@ -176,12 +210,19 @@ def send_message():
 
     if handoff_required:
         conversation.ai_enabled = False
+
+        viewing = ai_result.get('viewing_preference')
+        if isinstance(viewing, str) and viewing.strip():
+            note = f"Viewing requested for: {viewing.strip()[:200]} - lead stage: {lead.lead_stage}"
+        else:
+            note = f"Conversation needs human attention - lead stage: {lead.lead_stage}"
+
         db.session.add(Notification(
             organization_id=org.id,
             lead_id=lead.id,
             conversation_id=conversation.id,
             type="HUMAN_HANDOFF",
-            message=f"Conversation needs human attention - lead stage: {lead.lead_stage}"
+            message=note
         ))
 
     db.session.add(Message(
@@ -202,6 +243,7 @@ def send_message():
         "reply": reply_text,
         "conversation_token": conversation.public_token
     })
+
 
 # ---------- agent-facing: login required, scoped to the agent's own org ----------
 
