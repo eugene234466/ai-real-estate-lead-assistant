@@ -24,6 +24,7 @@ def create_app():
     from .modules.notifications.models import Notification
     from .modules.auth.models import User
     
+    
 
     from .modules.conversations.routes import conversations_bp
     app.register_blueprint(conversations_bp, url_prefix='/api/chat')
@@ -33,5 +34,8 @@ def create_app():
     
     from .modules.auth.routes import auth_bp
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    
+    from .modules.inbox.routes import inbox_bp
+    app.register_blueprint(inbox_bp, url_prefix='/api/inbox')
 
     return app
