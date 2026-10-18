@@ -259,7 +259,8 @@ def send_message():
         return jsonify({"error": "Could not save the reply. Please try again."}), 500
 
     return jsonify({
-        "reply": reply_text,
+        'reply': reply_text,
+        "ai_paused": not conversation.ai_enabled,
         "conversation_token": conversation.public_token
     })
 
@@ -303,8 +304,3 @@ def resume_ai(conversation_id):
 
     conversation.ai_enabled = True
     db.session.commit()
-
-    return jsonify({
-        "conversation_id": conversation.id,
-        "ai_enabled": True
-    })
