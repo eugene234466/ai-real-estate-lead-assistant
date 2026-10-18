@@ -51,8 +51,15 @@ def format_history(history):
 
 
 def summarize_lead(lead):
+    needed_all = [
+        "whether they want to rent or buy",
+        "the area they want",
+        "budget (a number)",
+        "when they hope to move",
+    ]
+
     if lead is None:
-        return "- Nothing collected yet.\nCurrent stage: NEW"
+        return "- Nothing collected yet.\n- Still needed: " + ", ".join(needed_all) + "\nCurrent stage: NEW"
 
     lines = []
     if lead.buy_or_rent:
@@ -67,12 +74,29 @@ def summarize_lead(lead):
         lines.append(f"- Intent: {_clean(lead.intent, 200)}")
     if lead.property_id:
         lines.append(f"- Interested property id: {lead.property_id}")
+    if lead.name:
+        lines.append(f"- Name: {_clean(lead.name, 100)}")
+    if lead.phone:
+        lines.append(f"- Phone: {_clean(lead.phone, 20)}")
+    if lead.email:
+        lines.append(f"- Email: {_clean(lead.email, 100)}")
     if not lines:
         lines.append("- Nothing collected yet.")
 
+    missing = []
+    if not lead.buy_or_rent:
+        missing.append(needed_all[0])
+    if not lead.location_preference:
+        missing.append(needed_all[1])
+    if lead.budget is None:
+        missing.append(needed_all[2])
+    if not lead.timeline:
+        missing.append(needed_all[3])
+    if missing:
+        lines.append("- Still needed: " + ", ".join(missing))
+
     lines.append(f"Current stage: {lead.lead_stage}")
     return "\n".join(lines)
-
 
 def allowed_stages(current_stage):
     # the AI may keep the current stage or move to a stage the server would accept
