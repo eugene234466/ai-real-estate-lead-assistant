@@ -27,11 +27,11 @@ function ChatWidget() {
         try {
             const result = await sendMessage(currentInput);
 
-            if (result.ai_paused) {
-                setAiPaused(true);
-            } else {
-                const aiMessage: Message = { sender: 'ai', text: result.reply };
-                setMessages((prev) => [...prev, aiMessage]);
+            if(result.reply){
+                setMessages((prev) => [...prev, {sender : 'ai', text: result.reply}])
+            }
+            if (result.ai_paused){
+                setAiPaused(true)
             }
         } catch (error) {
             const errorMessage: Message = {
