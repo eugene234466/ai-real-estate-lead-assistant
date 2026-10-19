@@ -1,6 +1,7 @@
 # backend/app/modules/ai_engine/service.py
 
 import logging
+import re
 
 from app.modules.ai_engine.groq_client import call_groq_chat
 from app.modules.ai_engine.output_schema import validate_ai_output
@@ -8,11 +9,50 @@ from app.modules.leads.state_machine import VALID_TRANSITIONS
 from app.modules.organizations.models import Organization
 from app.modules.properties.models import Property
 
-
 logger = logging.getLogger(__name__)
 
 SPEAKER_LABELS = {"user": "Visitor", "ai": "Assistant", "agent": "Agent"}
 
+# ---------- the no-promise guard ----------
+
+_TIME_WORDS = (
+    r"(\d{1,2}(:\d{2})?\s?(am|pm)|tomorrow|today|tonight|"
+    r"monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+)
+
+PROMISE_PATTERNS = [
+    # a day or time, then within ~30 characters "works / sounds good / is fine ..."
+    re.compile(_TIME_WORDS + r"\b.{0,30}\b(works|work|is fine|sounds good|is good|is perfect)\b", re.IGNORECASE),
+    re.compile(r"\bsee you\b", re.IGNORECASE),
+    re.compile(r"\bwe(?:'ll| will) (?:meet|be there|see you)\b", re.IGNORECASE),
+    re.compile(r"\b(?:is|are|has been|have been|you're|you are|all)\s+(?:booked|confirmed|scheduled)\b", re.IGNORECASE),
+]
+
+RETRY_REMINDER = (
+    "Your last draft told the visitor that a time works, sounds good, is booked, "
+    "or that someone will meet them. Rewrite it: don't comment on the time at all. "
+    "Say you've noted it, for example 'Thanks, I'll note tomorrow at 2pm', and ask "
+    "for the next thing you still need."
+)
+
+SAFE_REPLY = "Thanks, I've noted that. I can't confirm times myself, so an agent will confirm with you."
+
+
+def breaks_promise_rule(reply_text):
+    if not isinstance(reply_text, str) or not reply_text.strip():
+        return False
+
+    # questions like "what time tomorrow works for you?" are fine; only statements can promise
+    sentences = re.split(r"(?<=[.!?])\s+", reply_text.strip())
+    for sentence in sentences:
+        if sentence.rstrip().endswith("?"):
+            continue
+        if any(pattern.search(sentence) for pattern in PROMISE_PATTERNS):
+            return True
+    return False
+
+
+# ---------- prompt building ----------
 
 def _clean(text, max_len=500):
     # Visitor-written text ends up inside the prompt. Flatten it to one line and
@@ -99,17 +139,21 @@ def summarize_lead(lead):
     lines.append(f"Current stage: {lead.lead_stage}")
     return "\n".join(lines)
 
+
 def allowed_stages(current_stage):
     # the AI may keep the current stage or move to a stage the server would accept
     return {current_stage} | set(VALID_TRANSITIONS.get(current_stage, set()))
 
 
-def build_system_prompt(properties, business_name=None, lead=None, history=None) -> str:
+def build_system_prompt(properties, business_name=None, lead=None, history=None, reminder=None) -> str:
     business_name = _clean(business_name, 100) if business_name else "the agency"
     property_lines = "\n".join(format_property(p) for p in properties) or "(no properties listed)"
 
     current_stage = lead.lead_stage if lead else "NEW"
     stage_options = " | ".join(f'"{s}"' for s in sorted(allowed_stages(current_stage)))
+
+    # used on the retry only; it goes last because the end of a prompt carries the most weight
+    reminder_block = f"\nIMPORTANT: {reminder}\n" if reminder else ""
 
     return f"""You're the virtual assistant for {business_name}, a real estate agency. Picture the friendly person at the front desk who answers messages from people looking for a place: warm, quick, practical, and honest about what you can and can't do.
 
@@ -184,9 +228,10 @@ Field rules:
 - next_action is a short label for your next step, such as ASK_BUDGET or PASS_TO_AGENT.
 - lead_stage: ENGAGED once the visitor shows real interest; QUALIFYING while you collect rent-or-buy, budget and timeline; QUALIFIED once you have all three; BOOKING once they want to arrange a viewing. Only move forward when the conversation supports it.
 - human_handoff_required is true if the visitor asks for a person, raises a legal question, wants to negotiate, complains, you lack reliable information, or you've just collected a viewing time and contact details.
-"""
+{reminder_block}"""
 
 
+# ---------- calling the model ----------
 
 def _fallback_response():
     return {
@@ -195,6 +240,10 @@ def _fallback_response():
         "buy_or_rent": None,
         "location_preference": None,
         "budget": None,
+        "name": None,
+        "phone": None,
+        "email": None,
+        "viewing_preference": None,
         "timeline": None,
         "missing_information": [],
         "lead_stage": "HUMAN_HANDOFF",
@@ -204,22 +253,48 @@ def _fallback_response():
     }
 
 
-def generate_ai_response(user_text: str, organization_id, history=None, lead=None):
-    properties = Property.query.filter_by(organization_id=organization_id).all()
-    org = Organization.query.filter_by(id=organization_id).first()
-
-    system_prompt = build_system_prompt(
-        properties,
-        business_name=org.name if org else None,
-        lead=lead,
-        history=history
-    )
-
+def _ask_model(system_prompt, user_text):
     raw_output = call_groq_chat(system_prompt, user_text)
     is_valid, parsed, error = validate_ai_output(raw_output)
 
     if not is_valid:
         logger.error("Invalid AI output: %s", error)
+        return None
+
+    return parsed
+
+
+def generate_ai_response(user_text: str, organization_id, history=None, lead=None):
+    properties = Property.query.filter_by(organization_id=organization_id).all()
+    org = Organization.query.filter_by(id=organization_id).first()
+    business_name = org.name if org else None
+
+    system_prompt = build_system_prompt(
+        properties, business_name=business_name, lead=lead, history=history
+    )
+
+    parsed = _ask_model(system_prompt, user_text)
+    if parsed is None:
         return _fallback_response()
+
+    if breaks_promise_rule(parsed.get("response")):
+        # never log the reply text itself: it can contain visitor details
+        logger.warning("Reply broke the no-promise rule, retrying once")
+
+        retry_prompt = build_system_prompt(
+            properties, business_name=business_name, lead=lead,
+            history=history, reminder=RETRY_REMINDER
+        )
+        try:
+            retry = _ask_model(retry_prompt, user_text)
+        except Exception:
+            logger.exception("Retry after a no-promise violation failed")
+            retry = None
+
+        if retry is not None and not breaks_promise_rule(retry.get("response")):
+            parsed = retry
+        else:
+            # keep the extracted fields, replace only the visitor-facing text
+            parsed["response"] = SAFE_REPLY
 
     return parsed
