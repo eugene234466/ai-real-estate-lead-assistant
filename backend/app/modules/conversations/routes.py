@@ -304,3 +304,56 @@ def resume_ai(conversation_id):
 
     conversation.ai_enabled = True
     db.session.commit()
+
+
+MAX_POLL_MESSAGES = 50
+
+@conversations_bp.route('/api/chat/poll', methods=['POST'])
+def poll_messages():
+    body = request.get_json(silent=True) or {}
+    widget_key = body.get('widget_key')
+    public_token = body.get('conversation_token')
+    after_raw = body.get('after') 
+    
+    if not widget_key or public_token:
+        return jsonify({"error": "not found"}), 404
+    
+    org = Organization.query.filter_by(widget_key=str(widget_key)).first()
+    if org is None:
+        return jsonify({"error":"not found"}), 404
+    
+    conversation = Conversation.query.filter_by(
+        public_token = str(public_token),
+        organization_id = org.id
+    ).first()
+    
+    if conversation is None:
+        return jsonify({"error":"not found"}), 404
+    
+    after = None
+    if after_raw:
+        try:
+            after = datetime.fromisoformat(str(after_raw))
+        except ValueError:
+            return jsonify({"error":"after must be an ISO datetime"}), 400
+        
+    query = Message.query.filter_by(conversation_id=conversation.id, organization_id=org.id)
+    if after:
+        query = query.filter_by(Message.created_at > after)
+    recent = query.order_by(Message.created_at.desc()).limit(MAX_POLL_MESSAGES).all()
+    
+    messages = [ {id: str(m.id), sender: m.sender, text: m.text, created_at: m.created_at.isoformat()} 
+                for m in reversed(recent)]
+
+    
+    if messages:
+        latest_at = messages[-1]["created_at"]
+    else:
+        latest_at = after_raw
+        
+    return jsonify({
+        "messages": messages,
+        "latest_at": latest_at,
+        "ai_paused": not conversation.ai_enabled 
+    })
+            
