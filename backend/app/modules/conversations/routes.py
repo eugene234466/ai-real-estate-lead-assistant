@@ -23,6 +23,7 @@ conversations_bp = Blueprint('conversations', __name__)
 MAX_MESSAGE_LENGTH = 1000
 MAX_HISTORY_MESSAGES = 10
 FALLBACK_REPLY = "Sorry, I'm having trouble right now. An agent will follow up with you shortly."
+PHONE_REJECTED_REPLY = "That number looks incomplete. Could you double-check it for me?"
 
 
 def is_valid_uuid(value):
@@ -56,6 +57,8 @@ def clean_phone(value):
     digits = "".join(ch for ch in value if ch.isdigit())
     cleaned = ("+" if value.startswith("+") else "") + digits
     # reject instead of truncating: a cut-off phone number is worse than none
+    if digits.startswith("0") and len(digits) != 10:
+        return None
     return cleaned if 7 <= len(cleaned) <= 13 else None
 
 
