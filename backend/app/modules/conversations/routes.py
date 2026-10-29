@@ -21,11 +21,13 @@ logger = logging.getLogger(__name__)
 conversations_bp = Blueprint('conversations', __name__)
 
 MAX_MESSAGE_LENGTH = 1000
-MAX_POLL_MESSAGES = 50
 MAX_HISTORY_MESSAGES = 10
+MAX_POLL_MESSAGES = 50
 FALLBACK_REPLY = "Sorry, I'm having trouble right now. An agent will follow up with you shortly."
-PHONE_REJECTED_REPLY = "That number looks incomplete. Could you double-check it for me?"  # NEW
+PHONE_REJECTED_REPLY = "That number looks incomplete. Could you double-check it for me?"
 
+
+# ---------- helpers ----------
 
 def is_valid_uuid(value):
     try:
@@ -56,7 +58,7 @@ def clean_phone(value):
         return None
     value = value.strip()
     digits = "".join(ch for ch in value if ch.isdigit())
-    # NEW: Ghanaian local numbers are 10 digits starting with 0
+    # Ghanaian local numbers are 10 digits starting with 0
     if digits.startswith("0") and len(digits) != 10:
         return None
     cleaned = ("+" if value.startswith("+") else "") + digits
@@ -130,7 +132,8 @@ def send_message():
             "reply": None,
             "ai_paused": True,
             "message": "This conversation is currently being handled by an agent.",
-            "conversation_token": conversation.public_token
+            "conversation_token": conversation.public_token,
+            "user_message_id": str(user_message.id)                      # NEW
         })
 
     # what the AI needs to stay coherent: the recent transcript and what we know so far
@@ -197,7 +200,7 @@ def send_message():
     if isinstance(name, str) and name.strip():
         lead.name = name.strip()[:255]
 
-    # NEW: remember when the visitor gave a number that failed the check
+    # remember when the visitor gave a number that failed the check
     raw_phone = ai_result.get('phone')
     phone = clean_phone(raw_phone)
     phone_rejected = isinstance(raw_phone, str) and bool(raw_phone.strip()) and phone is None
@@ -232,7 +235,7 @@ def send_message():
         reply_text = FALLBACK_REPLY
         handoff_required = True
 
-    # NEW: a rejected number would make "an agent will contact you" untrue, so keep
+    # a rejected number would make "an agent will contact you" untrue, so keep
     # the chat live and ask for the number again
     if phone_rejected and not can_reach(lead):
         logger.info("Rejected an invalid phone number for lead %s", lead.id)
@@ -260,12 +263,13 @@ def send_message():
             message=note
         ))
 
-    db.session.add(Message(
+    ai_message = Message(                                                # NEW: named, so its id can be returned
         organization_id=org.id,
         conversation_id=conversation.id,
         sender="ai",
         text=reply_text
-    ))
+    )
+    db.session.add(ai_message)
 
     try:
         db.session.commit()  # lead update, handoff, notification, and reply land together
@@ -277,7 +281,75 @@ def send_message():
     return jsonify({
         "reply": reply_text,
         "ai_paused": not conversation.ai_enabled,
-        "conversation_token": conversation.public_token
+        "conversation_token": conversation.public_token,
+        "user_message_id": str(user_message.id),                         # NEW
+        "reply_id": str(ai_message.id),                                  # NEW
+    })
+
+
+# NEW: the widget polls this for agent replies, follow-ups, and to reload after a refresh
+@conversations_bp.route('/poll', methods=['POST'])
+def poll_messages():
+    body = request.get_json(silent=True) or {}
+    widget_key = body.get('widget_key')
+    public_token = body.get('conversation_token')
+    after_raw = body.get('after')
+
+    if not widget_key or not public_token:
+        return jsonify({"error": "widget_key and conversation_token are required"}), 400
+
+    org = Organization.query.filter_by(widget_key=str(widget_key)).first()
+    if not org:
+        return jsonify({"error": "not found"}), 404
+
+    # the token lookup also filters on the org, so a token from one agency
+    # can't be used through another agency's widget key
+    conversation = Conversation.query.filter_by(
+        public_token=str(public_token),
+        organization_id=org.id
+    ).first()
+    if not conversation:
+        return jsonify({"error": "not found"}), 404
+
+    after = None
+    if after_raw:
+        try:
+            after = datetime.fromisoformat(str(after_raw))
+        except ValueError:
+            return jsonify({"error": "after must be an ISO datetime"}), 400
+        if after.tzinfo is not None:
+            after = after.astimezone(timezone.utc).replace(tzinfo=None)
+
+    query = Message.query.filter_by(
+        conversation_id=conversation.id, organization_id=org.id
+    )
+    if after is not None:
+        # >= so a message saved in the same instant as the last one is never skipped;
+        # the widget ignores repeats by message id
+        query = query.filter(Message.created_at >= after)
+
+    # newest first so the limit keeps the latest, then flip to oldest-first
+    recent = query.order_by(Message.created_at.desc()).limit(MAX_POLL_MESSAGES).all()
+    messages = [
+        {
+            "id": str(m.id),
+            "sender": m.sender,
+            "text": m.text,
+            "created_at": m.created_at.isoformat(),
+        }
+        for m in reversed(recent)
+    ]
+
+    if messages:
+        latest_at = messages[-1]["created_at"]
+    else:
+        latest_at = str(after_raw) if after_raw else None
+
+    # never includes public_token, lead details, or organization ids
+    return jsonify({
+        "messages": messages,
+        "latest_at": latest_at,
+        "ai_paused": not conversation.ai_enabled,
     })
 
 
@@ -324,63 +396,4 @@ def resume_ai(conversation_id):
     return jsonify({
         "conversation_id": conversation.id,
         "ai_enabled": True
-    })
-    
-    
-# ---------- public: the widget polls for new messages ----------
-
-@conversations_bp.route('/poll', methods=['POST'])
-def poll_messages():
-    body = request.get_json(silent=True) or {}
-    widget_key = body.get('widget_key')
-    public_token = body.get('conversation_token')
-    after_raw = body.get('after')
-
-    if not widget_key or not public_token:
-        return jsonify({"error": "widget_key and conversation_token are required"}), 400
-
-    org = Organization.query.filter_by(widget_key=str(widget_key)).first()
-    if not org:
-        return jsonify({"error": "not found"}), 404
-
-    # the token lookup also filters on the org, so a token from one agency
-    # can't be used through another agency's widget key
-    conversation = Conversation.query.filter_by(
-        public_token=str(public_token),
-        organization_id=org.id
-    ).first()
-    if not conversation:
-        return jsonify({"error": "not found"}), 404
-
-    after = None
-    if after_raw:
-        try:
-            after = datetime.fromisoformat(str(after_raw))
-        except ValueError:
-            return jsonify({"error": "after must be an ISO datetime"}), 400
-        if after.tzinfo is not None:
-            after = after.astimezone(timezone.utc).replace(tzinfo=None)
-
-    query = Message.query.filter_by(
-        conversation_id=conversation.id, organization_id=org.id
-    )
-    if after is not None:
-        query = query.filter(Message.created_at >= after)
-
-    # newest first so the limit keeps the latest, then flip to oldest-first
-    recent = query.order_by(Message.created_at.desc()).limit(MAX_POLL_MESSAGES).all()
-    messages = [
-        {
-            "id": str(m.id),
-            "sender": m.sender,
-            "text": m.text,
-            "created_at": m.created_at.isoformat(),
-        }
-        for m in reversed(recent)
-    ]
-
-    return jsonify({
-        "messages": messages,
-        "latest_at": messages[-1]["created_at"] if messages else after_raw,
-        "ai_paused": not conversation.ai_enabled,
     })
