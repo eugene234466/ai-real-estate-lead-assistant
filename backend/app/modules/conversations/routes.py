@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 conversations_bp = Blueprint('conversations', __name__)
 
 MAX_MESSAGE_LENGTH = 1000
+MAX_POLL_MESSAGES = 50
 MAX_HISTORY_MESSAGES = 10
 FALLBACK_REPLY = "Sorry, I'm having trouble right now. An agent will follow up with you shortly."
 PHONE_REJECTED_REPLY = "That number looks incomplete. Could you double-check it for me?"  # NEW
@@ -323,4 +324,63 @@ def resume_ai(conversation_id):
     return jsonify({
         "conversation_id": conversation.id,
         "ai_enabled": True
+    })
+    
+    
+# ---------- public: the widget polls for new messages ----------
+
+@conversations_bp.route('/poll', methods=['POST'])
+def poll_messages():
+    body = request.get_json(silent=True) or {}
+    widget_key = body.get('widget_key')
+    public_token = body.get('conversation_token')
+    after_raw = body.get('after')
+
+    if not widget_key or not public_token:
+        return jsonify({"error": "widget_key and conversation_token are required"}), 400
+
+    org = Organization.query.filter_by(widget_key=str(widget_key)).first()
+    if not org:
+        return jsonify({"error": "not found"}), 404
+
+    # the token lookup also filters on the org, so a token from one agency
+    # can't be used through another agency's widget key
+    conversation = Conversation.query.filter_by(
+        public_token=str(public_token),
+        organization_id=org.id
+    ).first()
+    if not conversation:
+        return jsonify({"error": "not found"}), 404
+
+    after = None
+    if after_raw:
+        try:
+            after = datetime.fromisoformat(str(after_raw))
+        except ValueError:
+            return jsonify({"error": "after must be an ISO datetime"}), 400
+        if after.tzinfo is not None:
+            after = after.astimezone(timezone.utc).replace(tzinfo=None)
+
+    query = Message.query.filter_by(
+        conversation_id=conversation.id, organization_id=org.id
+    )
+    if after is not None:
+        query = query.filter(Message.created_at >= after)
+
+    # newest first so the limit keeps the latest, then flip to oldest-first
+    recent = query.order_by(Message.created_at.desc()).limit(MAX_POLL_MESSAGES).all()
+    messages = [
+        {
+            "id": str(m.id),
+            "sender": m.sender,
+            "text": m.text,
+            "created_at": m.created_at.isoformat(),
+        }
+        for m in reversed(recent)
+    ]
+
+    return jsonify({
+        "messages": messages,
+        "latest_at": messages[-1]["created_at"] if messages else after_raw,
+        "ai_paused": not conversation.ai_enabled,
     })
